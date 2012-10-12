@@ -11,5 +11,8 @@
     "campfire":         "0.1.1",
   	"coffee-script":    "1.3.3",
   	"forever-monitor":  "1.1.0"
+  },
+  "bin": {
+    "resque-lifeguard": "./resque-lifeguard"
   }
 }
