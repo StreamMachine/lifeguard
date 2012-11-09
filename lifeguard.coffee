@@ -1,6 +1,7 @@
 forever = require "forever-monitor"
 campfire = (require "campfire").Campfire
 fs = require "fs"
+path = require "path"
 
 module.exports = class Lifeguard
   constructor: (@dir,@cmd) ->
@@ -40,7 +41,9 @@ module.exports = class Lifeguard
     # set up watcher on tmp/restart.txt
     # it needs to exist for us to watch it...
         
-    @watcher = fs.watchFile "#{@dir}/tmp/restart.txt", => @_restartInstance()
+    @watcher = fs.watchFile "#{@dir}/tmp/restart.txt", => 
+      # only restart on a touch, not on a deletion (such as when current/ is unlinked)
+      @_restartInstance() if fs.existsSync("#{@dir}/tmp/restart.txt")
 
   #----------
   
@@ -49,16 +52,17 @@ module.exports = class Lifeguard
       # INT will gracefully shut down workers and immediately kill the manager
       process.kill @instance.child.pid, "SIGINT"
       @instance.forceStop = true
-      
+    
+    rdir = path.resolve @dir  
     @instance = new (forever.Monitor) @cmd.split(" "), cwd: @dir
     @instance.start()  
     
-    @instance.on "start", => @_notifyRestart()
-    @instance.on "restart", => @_notifyRestart()
+    @instance.on "start", => @_notifyRestart rdir
+    @instance.on "restart", => @_notifyRestart rdir
     
-  _notifyRestart: ->
+  _notifyRestart: (rdir) ->
     if @campfire
-      msg = "Lifeguard: restarted resque-pool in #{@dir} at #{new Date}"
+      msg = "Lifeguard: restarted resque-pool in #{rdir} at #{new Date}"
       
       if @campfire_room
         # send directly
