@@ -13,7 +13,7 @@ module.exports = class Lifeguard
     @_restartInstance()
     
     # set a friendly title
-    process.title = "lifeguard for #{@dir}"
+    process.title = "lifeguard for #{@dir} : #{@name}"
     
     @campfire = false
     @campfire_room = false
