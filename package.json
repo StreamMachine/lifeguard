@@ -1,11 +1,11 @@
 {
-  "name": "resque-lifeguard",
-  "version": "0.1.1",
-  "description": "Monitor and restart resque-pool processes on deployment.",
+  "name": "lifeguard",
+  "version": "0.2.1",
+  "description": "Monitor and restart processes on deployment.",
   "keywords": [],
-  "homepage": "http://github.com/emcien/resque-lifeguard/",
+  "homepage": "http://github.com/emcien/lifeguard/",
   "author": {"name": "Eric Richardson", "email": "erichardson@emcien.com"},
-  "repository": {"type": "git", "url": "http://github.com/emcien/resque-lifeguard.git"},
+  "repository": {"type": "git", "url": "http://github.com/emcien/lifeguard.git"},
   "main": "./index.js",
   "dependencies": {
     "campfire":         "0.1.1",
@@ -13,6 +13,6 @@
   	"forever-monitor":  "1.1.0"
   },
   "bin": {
-    "resque-lifeguard": "./resque-lifeguard"
+    "lifeguard": "./lifeguard-cmd"
   }
 }

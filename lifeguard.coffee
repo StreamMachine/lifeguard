@@ -4,14 +4,16 @@ fs = require "fs"
 path = require "path"
 
 module.exports = class Lifeguard
-  constructor: (@dir,@cmd) ->
+  constructor: (@dir,@cmd,@name) ->
     @instance = null
+    
+    @name = @cmd if !@name
         
     # start our new process
     @_restartInstance()
     
     # set a friendly title
-    process.title = "resque-lifeguard for #{@dir}"
+    process.title = "lifeguard for #{@dir}"
     
     @campfire = false
     @campfire_room = false
@@ -62,7 +64,7 @@ module.exports = class Lifeguard
     
   _notifyRestart: (rdir) ->
     if @campfire
-      msg = "Lifeguard: restarted resque-pool in #{rdir} at #{new Date}"
+      msg = "Lifeguard: restarted #{@name} in #{rdir} at #{new Date}"
       
       if @campfire_room
         # send directly
