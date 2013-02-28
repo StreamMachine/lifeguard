@@ -2,6 +2,7 @@ forever = require "forever-monitor"
 campfire = (require "campfire").Campfire
 fs = require "fs"
 path = require "path"
+exec = require('child_process').exec
 
 module.exports = class Lifeguard
   constructor: (@dir,@cmd,@name) ->
@@ -54,21 +55,68 @@ module.exports = class Lifeguard
       # INT will gracefully shut down workers and immediately kill the manager
       process.kill @instance.child.pid, "SIGINT"
       @instance.forceStop = true
+      @_ensureDeathOf @instance.child.pid
     
     rdir = path.resolve @dir  
     @instance = new (forever.Monitor) @cmd.split(" "), cwd: @dir
     @instance.start()  
     
-    @instance.on "start", => @_notifyRestart rdir
-    @instance.on "restart", => @_notifyRestart rdir
+    @instance.on "start", => @_notifyRestart()
+    @instance.on "restart", => @_notifyRestart()
+  
+  #----------
+  
+  _notify: (msg) ->
+    msg = "Lifeguard: #{@name} @ #{@dir} — #{msg}"
     
-  _notifyRestart: (rdir) ->
     if @campfire
-      msg = "Lifeguard: restarted #{@name} in #{rdir} at #{new Date}"
-      
       if @campfire_room
-        # send directly
         @campfire_room.speak msg
       else
         @campfire_queue.push msg
+        
+    else
+      console.log msg
+    
+  _notifyRestart: ->
+    @_notify "Restarted at #{new Date}"
+  
+  #----------
+        
+  _ensureDeathOf: (pid,wait = 3) ->
+    # every so often, this pid may not want to die. We want 
+    # it to die.
+    
+    setTimeout =>
+      # is it still alive?
+      cmd = "kill -0 #{pid}"
+      
+      child = exec cmd, (err,stdout,stderr) =>
+        if err
+          # PID can't be signalled.  should mean it is stopped
+          
+        else
+          # PID is running.
+          if wait > 0
+            # circle again...
+            @_notify "Old process #{pid} still alive... "
+            @_ensureDeathOf pid, wait - 1
+          else
+            # we're done waiting... kill -9
+            process.kill pid, "SIGKILL"
+            
+            # we'll give it one more check
+            setTimeout =>
+              exec cmd, (err,stdout,stderr) =>
+                if err
+                  # we're good
+                  @_notify "Old process #{pid} successfully killed via -9."
+                  
+                else
+                  # need to notify that it wouldn't die...
+                  @_notify "PID #{pid} refuses to die."
+                  
+            , 5000
+      
+    , 5000
     
