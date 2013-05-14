@@ -65,14 +65,14 @@ module.exports = class Lifeguard extends require("events").EventEmitter
     lFunc dir, (existing) =>
       console.log "_watchForDir pass came out with #{existing}"
       if existing == dir
-        console.log "Starting up!"
+        console.log "Starting up!", cb
         cb?()
         
       else
         @dwatcher = fs.watch existing, (type,filename) =>
           # on any change, just stop our watcher and try again
           @dwatcher.close()
-          @_watchForDir dir
+          @_watchForDir dir, cb
   
   #----------
   
@@ -94,7 +94,7 @@ module.exports = class Lifeguard extends require("events").EventEmitter
       @_ensureDeathOf @instance.child.pid
     
     rdir = path.resolve @dir  
-    @instance = new (forever.Monitor) @cmd.split(" "), cwd: @dir
+    @instance = new (forever.Monitor) @cmd.split(" "), cwd:rdir
     @instance.start()  
     
     @instance.on "start", => @_notifyRestart()
