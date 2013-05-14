@@ -1,53 +1,89 @@
 forever = require "forever-monitor"
-campfire = (require "campfire").Campfire
-fs = require "fs"
-path = require "path"
-exec = require('child_process').exec
+fs      = require "fs"
+path    = require "path"
+exec    = require('child_process').exec
 
-module.exports = class Lifeguard
+module.exports = class Lifeguard extends require("events").EventEmitter
   constructor: (@dir,@cmd,@name) ->
     @instance = null
     
     @name = @cmd if !@name
-        
-    # start our new process
-    @_restartInstance()
     
+    # -- Validate arguments -- #
+    
+    if !@dir || !@cmd
+      console.error "Usage: lifeguard <dir> <command> <name (optional)>"
+      process.exit()
+      
+    @dir = path.resolve(@dir)
+    
+    # -- Startup -- #
+        
     # set a friendly title
     process.title = "lifeguard for #{@dir} : #{@name}"
     
-    @campfire = false
-    @campfire_room = false
-    @campfire_queue = []
-    
     if process.env.CAMPFIRE_ACCOUNT && process.env.CAMPFIRE_TOKEN && process.env.CAMPFIRE_ROOM
-      @campfire = new campfire 
+      @campfire = new Lifeguard.Campfire
         account:  process.env.CAMPFIRE_ACCOUNT
         token:    process.env.CAMPFIRE_TOKEN
-        ssl:      true
-
-      @campfire.join process.env.CAMPFIRE_ROOM, (err,room) =>
-        @campfire_room = room
-        
-        for msg in @campfire_queue
-          @campfire_room.speak msg
-          
-        @campfire_queue = []
+        room:     process.env.CAMPFIRE_ROOM
         
     # if we get a HUP, pass it through to our instance
     process.on "SIGHUP", => process.kill @instance.child.pid, "SIGHUP"
         
     process.on "SIGTERM", =>
-        # need to shut down instance, but do it gracefully
-        process.kill @instance.child.pid, "SIGINT"
+      # need to shut down instance, but do it gracefully
+      process.kill @instance.child.pid, "SIGINT"
             
-    # set up watcher on tmp/restart.txt
-    # it needs to exist for us to watch it...
+    # start our new process, if the app directory exists.  if it doesn't, just 
+    # watch and wait
+    @_watchForDir path.resolve(@dir,"tmp/restart.txt"), => @_startUp()
+
+  #----------
+  
+  # If our entire path doesn't yet exist, walk backward until we find the 
+  # longest part that does. watch that directory for the next step in the 
+  # tree to appear
+  
+  _watchForDir: (dir,cb) ->
+    console.log "watchForDir trying #{dir}"
+    # loop our way up until we find something that exists    
+    lFunc = (d,lcb) =>
+      # test this
+      fs.exists d, (exists) =>
+        if exists
+          console.log "Found #{d}"
+          lcb?(d)
+        else
+          if d == "/"
+            @_notify "Failed to find a directory to watch."
+          else
+            console.log "trying again with ", path.resolve d, ".."
+            d = path.resolve d, ".."
+            lFunc(d,lcb)
+            
+    lFunc dir, (existing) =>
+      console.log "_watchForDir pass came out with #{existing}"
+      if existing == dir
+        console.log "Starting up!"
+        cb?()
         
-    @watcher = fs.watchFile "#{@dir}/tmp/restart.txt", => 
+      else
+        @dwatcher = fs.watch existing, (type,filename) =>
+          # on any change, just stop our watcher and try again
+          @dwatcher.close()
+          @_watchForDir dir
+  
+  #----------
+  
+  _startUp: ->
+    # set up a watcher on tmp/restart.txt
+    @watcher = fs.watch path.resolve(@dir,"tmp/restart.txt"), (type,filename) => 
       # only restart on a touch, not on a deletion (such as when current/ is unlinked)
       @_restartInstance() if fs.existsSync("#{@dir}/tmp/restart.txt")
-
+  
+    @_restartInstance()
+    
   #----------
   
   _restartInstance: ->
@@ -69,14 +105,9 @@ module.exports = class Lifeguard
   _notify: (msg) ->
     msg = "Lifeguard: #{@name} @ #{@dir} — #{msg}"
     
-    if @campfire
-      if @campfire_room
-        @campfire_room.speak msg
-      else
-        @campfire_queue.push msg
-        
-    else
-      console.log msg
+    @emit "notify", msg
+
+    console.log msg
     
   _notifyRestart: ->
     @_notify "Restarted at #{new Date}"
@@ -119,4 +150,36 @@ module.exports = class Lifeguard
             , 5000
       
     , 5000
+  
+  #----------
+  
+  class @Campfire
+    constructor: (@lifeguard,@opts) ->
+      Campfire = (require "campfire").Campfire
+      
+      @campfire_room = false
+      @campfire_queue = []
+    
+      @campfire = new Campfire 
+        account:  @opts.account
+        token:    @opts.token
+        ssl:      true
+
+      @campfire.join @opts.room, (err,room) =>
+        @campfire_room = room
+        
+        for msg in @campfire_queue
+          @campfire_room.speak msg
+          
+        @campfire_queue = []
+        
+      # -- monitor for notifies -- #
+      
+      @lifeguard.on "notify", (msg) =>
+        if @campfire_room
+          @campfire_room.speak msg
+        else
+          @campfire_queue.push msg
+      
+      
     
