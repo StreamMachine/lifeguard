@@ -23,7 +23,7 @@ module.exports = class Lifeguard extends require("events").EventEmitter
     process.title = "lifeguard for #{@dir} : #{@name}"
     
     if process.env.CAMPFIRE_ACCOUNT && process.env.CAMPFIRE_TOKEN && process.env.CAMPFIRE_ROOM
-      @campfire = new Lifeguard.Campfire
+      @campfire = new Lifeguard.Campfire @,
         account:  process.env.CAMPFIRE_ACCOUNT
         token:    process.env.CAMPFIRE_TOKEN
         room:     process.env.CAMPFIRE_ROOM
