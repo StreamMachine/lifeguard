@@ -52,20 +52,18 @@ module.exports = class Lifeguard extends require("events").EventEmitter
       # test this
       fs.exists d, (exists) =>
         if exists
-          console.log "Found #{d}"
           lcb?(d)
         else
           if d == "/"
             @_notify "Failed to find a directory to watch."
           else
-            console.log "trying again with ", path.resolve d, ".."
             d = path.resolve d, ".."
             lFunc(d,lcb)
             
     lFunc dir, (existing) =>
       console.log "_watchForDir pass came out with #{existing}"
       if existing == dir
-        console.log "Starting up!", cb
+        console.log "Starting up!"
         cb?()
         
       else
