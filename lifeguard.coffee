@@ -153,31 +153,40 @@ module.exports = class Lifeguard extends require("events").EventEmitter
   
   class @Campfire
     constructor: (@lifeguard,@opts) ->
-      Campfire = (require "campfire").Campfire
+      @d = require("domain").create()
       
-      @campfire_room = false
-      @campfire_queue = []
-    
-      @campfire = new Campfire 
-        account:  @opts.account
-        token:    @opts.token
-        ssl:      true
-
-      @campfire.join @opts.room, (err,room) =>
-        @campfire_room = room
-        
-        for msg in @campfire_queue
-          @campfire_room.speak msg
-          
-        @campfire_queue = []
-        
-      # -- monitor for notifies -- #
-      
-      @lifeguard.on "notify", (msg) =>
-        if @campfire_room
-          @campfire_room.speak msg
+      @d.on "error", (err) =>
+        if err.code == "ECONNRESET"
+          # ignore
         else
-          @campfire_queue.push msg
+          console.log "Campfire error: ", err
+        
+      @d.run =>      
+        Campfire = (require "campfire").Campfire
+      
+        @campfire_room = false
+        @campfire_queue = []
+    
+        @campfire = new Campfire 
+          account:  @opts.account
+          token:    @opts.token
+          ssl:      true
+
+        @campfire.join @opts.room, (err,room) =>
+          @campfire_room = room
+        
+          for msg in @campfire_queue
+            @campfire_room.speak msg
+          
+          @campfire_queue = []
+        
+        # -- monitor for notifies -- #
+      
+        @lifeguard.on "notify", (msg) =>
+          if @campfire_room
+            @campfire_room.speak msg
+          else
+            @campfire_queue.push msg
       
       
     
