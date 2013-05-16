@@ -75,10 +75,24 @@ module.exports = class Lifeguard extends require("events").EventEmitter
   #----------
   
   _startUp: ->
+    # there are two things we need to be watching for:
+    # 1) a change event on tmp/restart.txt
+    # 2) a change to the symlinked current that is @dir
+    
     # set up a watcher on tmp/restart.txt
-    @watcher = fs.watch path.resolve(@dir,"tmp/restart.txt"), (type,filename) => 
+    @r_watcher = fs.watch path.resolve(@dir,"tmp/restart.txt"), (type,filename) => 
       # only restart on a touch, not on a deletion (such as when current/ is unlinked)
       @_restartInstance() if fs.existsSync("#{@dir}/tmp/restart.txt")
+      
+    # watch for our directory to change out from under us
+    d_base = path.basename(@dir)
+    @d_watcher = fs.watch path.resolve(@dir,".."), (type,filename) =>
+      if filename == d_base
+        # we need to start over.  the directory is changing.
+        @r_watcher.close()
+        @d_watcher.close()
+        
+        @_watchForDir path.resolve(@dir,"tmp/restart.txt"), => @_startUp()
   
     @_restartInstance()
     
