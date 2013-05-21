@@ -17,6 +17,21 @@ module.exports = class Lifeguard extends require("events").EventEmitter
       
     @dir = path.resolve(@dir)
     
+    # create a debounced function for calling restart, so that we don't 
+    # trigger multiple times in a row.  This would just be _.debounce, 
+    # but bringing underscore in for one thing seemed silly
+    
+    @debounceRestart = do =>
+      _timeout = null
+      _ts = 1000
+      
+      =>
+        clearTimeout(_timeout)
+        _timeout = setTimeout =>
+          _timeout = null
+          @_restartInstance()
+        , _ts
+    
     # -- Startup -- #
         
     # set a friendly title
@@ -31,22 +46,32 @@ module.exports = class Lifeguard extends require("events").EventEmitter
     # if we get a HUP, pass it through to our instance
     process.on "SIGHUP", => process.kill @instance.child.pid, "SIGHUP"
         
-    process.on "SIGTERM", =>
-      # need to shut down instance, but do it gracefully
-      process.kill @instance.child.pid, "SIGINT"
-            
+    process.on "SIGTERM", => @_shutDown()
+          
+    process.on "uncaughtException", => @_shutDown()
+              
     # start our new process, if the app directory exists.  if it doesn't, just 
     # watch and wait
     @_watchForDir path.resolve(@dir,"tmp/restart.txt"), => @_startUp()
 
   #----------
   
+  _shutDown: ->
+    @_notify "Lifeguard got TERM signal. Shutting down."
+    
+    # need to shut down instance, but do it gracefully
+    @instance.forceStop = true
+    process.kill @instance.child.pid, "SIGINT"
+    
+    @instance.on "exit", =>
+        @_notify "Child process has exited."
+        process.exit() 
+  
   # If our entire path doesn't yet exist, walk backward until we find the 
   # longest part that does. watch that directory for the next step in the 
   # tree to appear
   
   _watchForDir: (dir,cb) ->
-    console.log "watchForDir trying #{dir}"
     # loop our way up until we find something that exists    
     lFunc = (d,lcb) =>
       # test this
@@ -61,7 +86,6 @@ module.exports = class Lifeguard extends require("events").EventEmitter
             lFunc(d,lcb)
             
     lFunc dir, (existing) =>
-      console.log "_watchForDir pass came out with #{existing}"
       if existing == dir
         console.log "Starting up!"
         cb?()
@@ -82,7 +106,7 @@ module.exports = class Lifeguard extends require("events").EventEmitter
     # set up a watcher on tmp/restart.txt
     @r_watcher = fs.watch path.resolve(@dir,"tmp/restart.txt"), (type,filename) => 
       # only restart on a touch, not on a deletion (such as when current/ is unlinked)
-      @_restartInstance() if fs.existsSync("#{@dir}/tmp/restart.txt")
+      @debounceRestart() if fs.existsSync("#{@dir}/tmp/restart.txt")
       
     # watch for our directory to change out from under us
     d_base = path.basename(@dir)
@@ -94,7 +118,7 @@ module.exports = class Lifeguard extends require("events").EventEmitter
         
         @_watchForDir path.resolve(@dir,"tmp/restart.txt"), => @_startUp()
   
-    @_restartInstance()
+    @debounceRestart()
     
   #----------
   
