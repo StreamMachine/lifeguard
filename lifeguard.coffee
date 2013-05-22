@@ -48,7 +48,10 @@ module.exports = class Lifeguard extends require("events").EventEmitter
         
     process.on "SIGTERM", => @_shutDown()
           
-    process.on "uncaughtException", => @_shutDown()
+    #process.on "uncaughtException", (err) => @_shutDown(err)
+    process.on "uncaughtException", (err) =>
+      console.error "Error is ", err
+      process.exit()
               
     # start our new process, if the app directory exists.  if it doesn't, just 
     # watch and wait
@@ -194,10 +197,7 @@ module.exports = class Lifeguard extends require("events").EventEmitter
       @d = require("domain").create()
       
       @d.on "error", (err) =>
-        if err.code == "ECONNRESET"
-          # ignore
-        else
-          console.log "Campfire error: ", err
+        console.error "Campfire error: ", err
         
       @d.run =>      
         Campfire = (require "campfire").Campfire
@@ -214,7 +214,8 @@ module.exports = class Lifeguard extends require("events").EventEmitter
           @campfire_room = room
         
           for msg in @campfire_queue
-            @campfire_room.speak msg
+            @campfire_room.speak msg, (err) =>
+              # ok
           
           @campfire_queue = []
         
@@ -222,7 +223,8 @@ module.exports = class Lifeguard extends require("events").EventEmitter
       
         @lifeguard.on "notify", (msg) =>
           if @campfire_room
-            @campfire_room.speak msg
+            @campfire_room.speak msg, (err) =>
+              # ok
           else
             @campfire_queue.push msg
       
