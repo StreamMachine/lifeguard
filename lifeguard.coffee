@@ -203,10 +203,13 @@ module.exports = class Lifeguard extends require("events").EventEmitter
         # send SIGUSR2 to start the process
         process.kill old_instance.child.pid, "SIGUSR2"
         
+        handles = []
+        
         # proxy messages between old and new
         oToN = (msg,handle) =>
           console.log "LIFEGUARD: oToN ", msg, handle?
           new_instance.child.send msg, handle
+          handles.push handle if handle?
           
         nToO = (msg,handle) =>
           console.log "LIFEGUARD: nToO ", msg, handle?
@@ -220,6 +223,9 @@ module.exports = class Lifeguard extends require("events").EventEmitter
           # detach our proxies
           new_instance.child.removeListener "message", nToO
           console.log "Handoff done."
+          
+          for h in handles
+            h.close?()
       
     else
       # INT will gracefully shut down workers and immediately kill the manager
