@@ -138,7 +138,7 @@ module.exports = class Lifeguard extends require("events").EventEmitter
       # on any change, just stop our watcher and try again
       @dwatcher.close()
       clearInterval _pInt if _pInt
-      @_watchForDir dir, cb
+      @_watchForDir target, cb
     
     # -- Poll the full target -- #
     
@@ -147,6 +147,7 @@ module.exports = class Lifeguard extends require("events").EventEmitter
         if exists
           # target acquired...
           @dwatcher.close()
+          clearInterval _pInt if _pInt
           cb?()
     , 1000
           
