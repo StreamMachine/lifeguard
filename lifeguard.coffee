@@ -101,7 +101,7 @@ module.exports = class Lifeguard extends require("events").EventEmitter
   # longest part that does. watch that directory for the next step in the 
   # tree to appear
   
-  _watchForDir: (dir,cb) ->
+  _watchForDir: (target,cb) ->
     # loop our way up until we find something that exists    
     lFunc = (d,lcb) =>
       # test this
@@ -115,8 +115,8 @@ module.exports = class Lifeguard extends require("events").EventEmitter
             d = path.resolve d, ".."
             lFunc(d,lcb)
             
-    lFunc dir, (existing) =>
-      if existing == dir
+    lFunc target, (existing) =>
+      if existing == target
         console.log "Starting up!"
         cb?()
         
