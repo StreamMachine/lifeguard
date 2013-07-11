@@ -1,12 +1,16 @@
 {
   "name": "lifeguard",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Monitor and restart processes on deployment.",
-  "keywords": [],
+  "keywords": ["lifeguard","process","forever","campfire"],
+  "license": "BSD",
   "homepage": "http://github.com/emcien/lifeguard/",
   "author": {"name": "Eric Richardson", "email": "erichardson@emcien.com"},
   "repository": {"type": "git", "url": "http://github.com/emcien/lifeguard.git"},
   "main": "./index.js",
+  "engines": {
+    "node": ">=0.10.0"
+  }
   "dependencies": {
     "campfire":         "0.1.1",
   	"coffee-script":    "1.3.3",

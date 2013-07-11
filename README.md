@@ -8,7 +8,12 @@
     (_)      (__) (__)   (__)                        (__)            
 ===
 
-lifeguard launches and monitors processes for a web app, restarting the pool when a new code version is deployed.
+lifeguard is yet-another-process-launcher, but with a few extra tricks up its 
+sleeve.  It was designed to run processes that accompany apps that are deployed 
+via [Capistrano](http://www.capistranorb.com/), so it supports watching for 
+changes to `tmp/restart.txt`.  It also supports being started up before the 
+process it is configured to run has been deployed, allowing it to be provisioned 
+as a service before the app deployment.
 
 Optionally, lifeguard can also connect to a campfire room and mention restarts there.
 
@@ -23,19 +28,30 @@ variables:
 
 To run lifeguard:
 
-    /path/to/lifeguard /app/dir "bundle exec resque-pool -E production" "Optional Title"
+    lifeguard --dir /app/dir/current --cmd "bundle exec resque-pool -E production" --title "ResquePool-production"
+	
+Arguments:
+
+* `--dir`: Tells lifeguard what directory to watch for a tmp/restart.txt 
+    file.  If specified, lifeguard will not run the command until 
+	{dir}/tmp/restart.txt exists. 
+	
+* `--cmd`: The command lifeguard should run. If `--dir` was specified, working 
+	directory will be changed before starting.
+	
+* `--title`: Lifeguard will use title in Campfire notifications and will set 
+	the process title to "lifeguard:{title}"
+	
+* `--handoff`: For Node.js apps, lifeguard can run in a special mode that allows 
+	live handoffs between old and new instances, allowing them to transfer state 
+	and listening sockets.  For more, see the 
+	[StreamMachine](http://github.com/StreamMachine/StreamMachine) project.
     
-First argument is the app directory (which must contain `tmp/restart.txt`). Second argument is the command to run. 
-Third argument is an optional title, which will be used in Campfire restart notices.  If it isn't specified, the 
-command argument will be used as a title instead.
+## Installing
 
-If you want to install the lifeguard script somewhere in your path, do it via a symlink:
+You can install lifeguard globally via npm:
 
-    ln -s /path/to/lifeguard/lifeguard /usr/local/bin/lifeguard
-    
-You can let npm do that automatically by installing with:
-
-    npm install -g git://github.com/emcien/lifeguard.git
+	npm install -g lifeguard
     
 ## Who?
 
