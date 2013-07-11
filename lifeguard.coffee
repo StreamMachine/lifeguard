@@ -63,7 +63,8 @@ module.exports = class Lifeguard extends require("events").EventEmitter
         room:     process.env.CAMPFIRE_ROOM
         
     # if we get a HUP, pass it through to our instance
-    process.on "SIGHUP", => process.kill @instance.child.pid, "SIGHUP"
+    process.on "SIGHUP", => 
+      process.kill @instance.child.pid, "SIGHUP" if @instance
     
     # SIGUSR2 triggers a restart (mostly for development)
     process.on "SIGUSR2", => @_restartInstance()
@@ -120,17 +121,45 @@ module.exports = class Lifeguard extends require("events").EventEmitter
         cb?()
         
       else
-        @dwatcher = fs.watch existing, (type,filename) =>
-          # on any change, just stop our watcher and try again
-          @dwatcher.close()
-          @_watchForDir dir, cb
+        @_pollForDir target, existing, cb
   
+  #----------
+  
+  _pollForDir: (target,existing,cb) ->
+    # we got here because not all of our target path exists.  Sometimes that's 
+    # accurate -- the app is still deploying, etc. Sometimes, though, it 
+    # actually snapped into place in between the point where we checked and 
+    # the point where we start watching for changes.  We'll watch what we 
+    # found (existing), but also set up an interval to poll for the full path.
+    
+    # -- Watch existing -- #
+    
+    @dwatcher = fs.watch existing, (type,filename) =>
+      # on any change, just stop our watcher and try again
+      @dwatcher.close()
+      clearInterval _pInt if _pInt
+      @_watchForDir dir, cb
+    
+    # -- Poll the full target -- #
+    
+    _pInt = setInterval =>
+      fs.exists target, (exists) =>
+        if exists
+          # target acquired...
+          @dwatcher.close()
+          cb?()
+    , 1000
+          
   #----------
   
   _startUp: ->
     # there are two things we need to be watching for:
     # 1) a change event on tmp/restart.txt
     # 2) a change to the symlinked current that is @dir
+    
+    # close any existing watchers that got left around
+    @r_watcher?.close()
+    @d_watcher?.close()
     
     # set up a watcher on tmp/restart.txt
     @r_watcher = fs.watch path.resolve(@dir,"tmp/restart.txt"), (type,filename) => 
