@@ -4,18 +4,37 @@ path    = require "path"
 exec    = require('child_process').exec
 
 module.exports = class Lifeguard extends require("events").EventEmitter
-  constructor: (@dir,@cmd,@name) ->
+  constructor: () ->
+    @argv = require("optimist")
+        .usage("Usage: $0 --dir [dir] --cmd [cmd]")
+        .alias
+          t:  "title"
+          d:  "dir"
+          c:  "cmd"
+        .boolean("handoff")
+        .demand('cmd')
+        .describe
+          dir:      "Directory to watch for tmp/restart.txt"
+          cmd:      "Command to run"
+          title:    "Title for the process if monitoring to Campfire"
+          handoff:  "Process should use managed handoff when restarting (node scripts only)?"
+        .argv
+        
+    @cmd = @argv.cmd
+    @name = @argv.title
+      
     @instance = null
+    
+    # keep track of how many times we've started
+    @startCount = 0
     
     @name = @cmd if !@name
     
     # -- Validate arguments -- #
-    
-    if !@dir || !@cmd
-      console.error "Usage: lifeguard <dir> <command> <name (optional)>"
-      process.exit()
-      
-    @dir = path.resolve(@dir)
+
+    if @argv.dir
+      @dir = @argv.dir
+      @dir = path.resolve(@dir)
     
     # create a debounced function for calling restart, so that we don't 
     # trigger multiple times in a row.  This would just be _.debounce, 
@@ -35,7 +54,7 @@ module.exports = class Lifeguard extends require("events").EventEmitter
     # -- Startup -- #
         
     # set a friendly title
-    process.title = "lifeguard for #{@dir} : #{@name}"
+    process.title = "lifeguard:#{@name}"
     
     if process.env.CAMPFIRE_ACCOUNT && process.env.CAMPFIRE_TOKEN && process.env.CAMPFIRE_ROOM
       @campfire = new Lifeguard.Campfire @,
@@ -45,17 +64,24 @@ module.exports = class Lifeguard extends require("events").EventEmitter
         
     # if we get a HUP, pass it through to our instance
     process.on "SIGHUP", => process.kill @instance.child.pid, "SIGHUP"
+    
+    # SIGUSR2 triggers a restart (mostly for development)
+    process.on "SIGUSR2", => @_restartInstance()
         
     process.on "SIGTERM", => @_shutDown()
           
     #process.on "uncaughtException", (err) => @_shutDown(err)
-    process.on "uncaughtException", (err) =>
-      console.error "Error is ", err
-      process.exit()
+    #process.on "uncaughtException", (err) =>
+    #  console.error "Error is ", err
+    #  process.exit()
               
-    # start our new process, if the app directory exists.  if it doesn't, just 
-    # watch and wait
-    @_watchForDir path.resolve(@dir,"tmp/restart.txt"), => @_startUp()
+    if @dir
+      # start our new process, if the app directory exists.  if it doesn't, just 
+      # watch and wait
+      @_watchForDir path.resolve(@dir,"tmp/restart.txt"), => @_startUp()
+    else
+      # just start up
+      @_restartInstance()
 
   #----------
   
@@ -126,18 +152,86 @@ module.exports = class Lifeguard extends require("events").EventEmitter
   #----------
   
   _restartInstance: ->
-    if @instance
-      # INT will gracefully shut down workers and immediately kill the manager
-      process.kill @instance.child.pid, "SIGINT"
-      @instance.forceStop = true
-      @_ensureDeathOf @instance.child.pid
+    @_handleOldInstance(@instance) if @instance
     
-    rdir = path.resolve @dir  
-    @instance = new (forever.Monitor) @cmd.split(" "), cwd:rdir
-    @instance.start()  
+    args = {}
+    start_cmd = @cmd.split(" ")
+    
+    if @dir
+      rdir = path.resolve @dir
+      args.cwd = rdir
+    
+    if @argv.handoff
+      # for handoffs, we need to start using child_process.fork to get IPC
+      
+      if @startCount > 0
+        # we need to add the handoff flag
+        start_cmd.push "--handoff"
+      
+      else
+        # first start... no handoff flag
+          
+      args.fork = true
+          
+    console.log "Running #{start_cmd} with ", args
+    @instance = new (forever.Monitor) start_cmd, args
+    @instance.start()
+      
+    @instance.once "start", => @emit "instance", @instance
+    
+    # increment our start count
+    @startCount += 1
     
     @instance.on "start", => @_notifyRestart()
     @instance.on "restart", => @_notifyRestart()
+  
+  #----------
+  
+  _handleOldInstance: (old_instance) ->
+    if @argv.handoff
+      # We're in handoff mode, which means we're brokering a shutdown / startup 
+      # for the old and new processes.
+      
+      # Old process gets a SIGUSR2 to put it into handoff mode.  
+      # New process gets a --handoff argument
+            
+      # tell forever not to restart the old instance when it stops
+      old_instance.forceStop = true
+      
+      # watch for the new instance
+      @once "instance", (new_instance) =>
+        # send SIGUSR2 to start the process
+        process.kill old_instance.child.pid, "SIGUSR2"
+        
+        handles = []
+        
+        # proxy messages between old and new
+        oToN = (msg,handle) =>
+          console.log "LIFEGUARD: oToN ", msg, handle?
+          new_instance.child.send msg, handle
+          handles.push handle if handle?
+          
+        nToO = (msg,handle) =>
+          console.log "LIFEGUARD: nToO ", msg, handle?
+          old_instance.child.send msg, handle
+          
+        old_instance.child.on "message", oToN
+        new_instance.child.on "message", nToO
+        
+        # watch for the old instance to die
+        old_instance.child.on "exit", =>
+          # detach our proxies
+          new_instance.child.removeListener "message", nToO
+          console.log "Handoff done."
+          
+          for h in handles
+            h.close?()
+      
+    else
+      # INT will gracefully shut down workers and immediately kill the manager
+      process.kill old_instance.child.pid, "SIGINT"
+      old_instance.forceStop = true
+      @_ensureDeathOf old_instance.child.pid
   
   #----------
   
