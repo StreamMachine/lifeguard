@@ -1,6 +1,6 @@
 {
   "name": "lifeguard",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Monitor and restart processes on deployment.",
   "keywords": ["lifeguard","process","forever","campfire"],
   "license": "BSD",

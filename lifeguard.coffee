@@ -238,12 +238,23 @@ module.exports = class Lifeguard extends require("events").EventEmitter
         # proxy messages between old and new
         oToN = (msg,handle) =>
           console.log "LIFEGUARD: oToN ", msg, handle?
-          new_instance.child.send msg, handle
-          handles.push handle if handle?
+          
+          if handle && handle.destroyed
+            # lost a handle mid-flight...
+            new_instance.child.send msg
+          else
+            new_instance.child.send msg, handle
+            handles.push handle if handle?
           
         nToO = (msg,handle) =>
           console.log "LIFEGUARD: nToO ", msg, handle?
-          old_instance.child.send msg, handle
+          
+          if handle && handle.destroyed
+            # lost a handle mid-flight...
+            old_instance.child.send msg
+          else
+            old_instance.child.send msg, handle
+            handles.push handle if handle?
           
         old_instance.child.on "message", oToN
         new_instance.child.on "message", nToO
