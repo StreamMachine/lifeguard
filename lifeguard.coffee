@@ -243,8 +243,14 @@ module.exports = class Lifeguard extends require("events").EventEmitter
             # lost a handle mid-flight...
             new_instance.child.send msg
           else
-            new_instance.child.send msg, handle
-            handles.push handle if handle?
+            try
+              new_instance.child.send msg, handle
+              handles.push handle if handle?
+            catch e
+              if e instanceof TypeError
+                console.log "HANDLE SEND ERROR:: #{err}"
+                # send without handle
+                new_instance.child.send msg
           
         nToO = (msg,handle) =>
           console.log "LIFEGUARD: nToO ", msg, handle?

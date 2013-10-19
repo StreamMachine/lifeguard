@@ -53,6 +53,13 @@ You can install lifeguard globally via npm:
 
 	npm install -g lifeguard
     
+## Handoffs
+
+Lifeguard can coordinate with a compatible Node.js application to allow 
+seamless restarts that pass existing connections over to the new process.
+
+_More documentation to come._
+    
 ## Who?
 
 lifeguard is written by Eric Richardson <erichardson@emcien.com> for [Emcien](http://emcien.com).
