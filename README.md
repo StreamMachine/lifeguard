@@ -15,7 +15,7 @@ changes to `tmp/restart.txt`.  It also supports being started up before the
 process it is configured to run has been deployed, allowing it to be provisioned 
 as a service before the app deployment.
 
-Optionally, lifeguard can also connect to a campfire room and mention restarts there.
+Optionally, lifeguard can connect to Campfire or Slack to mention restarts.
 
 ## Usage
 
@@ -25,6 +25,13 @@ variables:
 * `CAMPFIRE_ACCOUNT`
 * `CAMPFIRE_TOKEN`
 * `CAMPFIRE_ROOM`
+
+If you want to use the Slack integration, you need to define these environment 
+variables:
+
+* `SLACK_TEAM`
+* `SLACK_TOKEN`
+* `SLACK_CHANNEL`
 
 To run lifeguard:
 
