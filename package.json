@@ -1,6 +1,6 @@
 {
   "name": "lifeguard",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Monitor and restart processes on deployment.",
   "keywords": ["lifeguard","process","forever","campfire"],
   "license": "BSD",
@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "campfire":         "0.1.1",
+    "node-slack":       "0.0.3",
   	"coffee-script":    "1.3.3",
   	"forever-monitor":  "1.1.0",
     "optimist":         "~0.5.2"

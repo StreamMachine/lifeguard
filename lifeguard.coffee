@@ -2,6 +2,7 @@ forever = require "forever-monitor"
 fs      = require "fs"
 path    = require "path"
 exec    = require('child_process').exec
+os      = require "os"
 
 module.exports = class Lifeguard extends require("events").EventEmitter
   constructor: () ->
@@ -16,7 +17,7 @@ module.exports = class Lifeguard extends require("events").EventEmitter
         .describe
           dir:      "Directory to watch for tmp/restart.txt"
           cmd:      "Command to run"
-          title:    "Title for the process if monitoring to Campfire"
+          title:    "Title for the process if monitoring to Campfire or Slack"
           handoff:  "Process should use managed handoff when restarting (node scripts only)?"
         .argv
         
@@ -56,11 +57,21 @@ module.exports = class Lifeguard extends require("events").EventEmitter
     # set a friendly title
     process.title = "lifeguard:#{@name}"
     
+    # -- Campfire? -- #
+    
     if process.env.CAMPFIRE_ACCOUNT && process.env.CAMPFIRE_TOKEN && process.env.CAMPFIRE_ROOM
       @campfire = new Lifeguard.Campfire @,
         account:  process.env.CAMPFIRE_ACCOUNT
         token:    process.env.CAMPFIRE_TOKEN
         room:     process.env.CAMPFIRE_ROOM
+    
+    # -- Slack? -- #
+    
+    if process.env.SLACK_TEAM && process.env.SLACK_TOKEN && process.env.SLACK_CHANNEL
+      @slack = new Lifeguard.Slack @, 
+        team:     process.env.SLACK_TEAM,
+        token:    process.env.SLACK_TOKEN,
+        channel:  process.env.SLACK_CHANNEL
         
     # if we get a HUP, pass it through to our instance
     process.on "SIGHUP", => 
@@ -283,7 +294,12 @@ module.exports = class Lifeguard extends require("events").EventEmitter
   #----------
   
   _notify: (msg) ->
-    msg = "Lifeguard: #{@name} @ #{@dir} — #{msg}"
+    name = if @dir
+      "#{@name} @ #{@dir}"
+    else
+      @name
+    
+    msg = "Lifeguard/#{os.hostname()}: #{name} — #{msg}"
     
     @emit "notify", msg
 
@@ -330,6 +346,23 @@ module.exports = class Lifeguard extends require("events").EventEmitter
             , 5000
       
     , 5000
+  
+  #----------
+  
+  class @Slack
+    constructor: (@lifeguard,@opts) ->
+      @d = require("domain").create()
+      
+      @d.on "error", (err) =>
+        console.error "Campfire error: ", err
+        
+      @d.run =>
+        @slack = new (require "node-slack") @opts.team, @opts.token
+        
+        @lifeguard.on "notify", (msg) =>
+          @slack.send
+            text:     msg
+            channel:  @opts.channel
   
   #----------
   
