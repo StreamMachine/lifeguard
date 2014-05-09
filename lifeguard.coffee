@@ -223,7 +223,7 @@ module.exports = class Lifeguard extends require("events").EventEmitter
     # increment our start count
     @startCount += 1
     
-    @instance.on "start", => @_notifyRestart()
+    @instance.on "start",   => @_notify "Starting up!"
     @instance.on "restart", => @_notifyRestart()
   
   #----------
@@ -354,7 +354,7 @@ module.exports = class Lifeguard extends require("events").EventEmitter
       @d = require("domain").create()
       
       @d.on "error", (err) =>
-        console.error "Campfire error: ", err
+        console.error "Slack error: ", err
         
       @d.run =>
         @slack = new (require "node-slack") @opts.team, @opts.token
