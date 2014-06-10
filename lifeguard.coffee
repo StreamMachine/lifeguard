@@ -93,7 +93,8 @@ module.exports = class Lifeguard extends require("events").EventEmitter
       @_watchForDir path.resolve(@dir,"tmp/restart.txt"), => @_startUp()
     else
       # does our command exist? if it doesn't, we'll watch for it to get created
-      @_watchForDir @cmd, => @_restartInstance()
+      cmd = @cmd.split(" ")[0]
+      @_watchForDir cmd, => @_restartInstance()
 
   #----------
 
